@@ -196,6 +196,84 @@ body {
   color: var(--ink-soft);
 }
 
+/* ---------- history ---------- */
+
+.history {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0;
+  margin-bottom: 40px;
+}
+
+.history__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.history__head h2 {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.history__clear {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.history__clear:hover { color: var(--ink); }
+.history__clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.history__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history__empty {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.history__item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.history__item:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.history__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.history__item .ts {
+  color: var(--ink-soft);
+  font-size: 10.5px;
+}
+
 /* ---------- status ---------- */
 
 .status {

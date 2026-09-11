@@ -21,8 +21,14 @@ const errorArea = document.getElementById("errorArea");
 const errorText = document.getElementById("errorText");
 const remainingQuotaEl = document.getElementById("remainingQuota");
 
+const historyList = document.getElementById("historyList");
+const historyEmpty = document.getElementById("historyEmpty");
+const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
 const DAILY_QUOTA = 10000;
 const QUOTA_STORAGE_KEY = "yt-hashtag-tool-quota-usage";
+const HISTORY_STORAGE_KEY = "yt-hashtag-tool-history";
+const HISTORY_MAX = 30;
 
 // クォータは太平洋時間の深夜にリセットされるため、その日付をキーにする
 function pacificDateKey() {
@@ -69,6 +75,68 @@ function updateCountLabel() {
 }
 countSlider.addEventListener("input", updateCountLabel);
 updateCountLabel();
+
+// ---------- 検索語の履歴(ブラウザのlocalStorageに保存。閉じても残る) ----------
+
+function loadHistory() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(arr) {
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(arr));
+}
+
+function addToHistory(keyword) {
+  const now = Date.now();
+  let history = loadHistory().filter((h) => h.keyword !== keyword);
+  history.unshift({ keyword, ts: now });
+  history = history.slice(0, HISTORY_MAX);
+  saveHistory(history);
+  renderHistory();
+}
+
+function formatTs(ts) {
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+  }).format(new Date(ts));
+}
+
+function renderHistory() {
+  const history = loadHistory();
+  historyList.querySelectorAll(".history__item").forEach((el) => el.remove());
+  historyEmpty.hidden = history.length > 0;
+
+  history.forEach((entry) => {
+    const li = document.createElement("li");
+    li.className = "history__item";
+    li.tabIndex = 0;
+    li.innerHTML = `<span>${escapeHtml(entry.keyword)}</span><span class="ts">${formatTs(entry.ts)}</span>`;
+    li.addEventListener("click", () => {
+      keywordInput.value = entry.keyword;
+      keywordInput.focus();
+    });
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        li.click();
+      }
+    });
+    historyList.appendChild(li);
+  });
+}
+
+clearHistoryBtn.addEventListener("click", () => {
+  if (!confirm("検索語の履歴を消去しますか?")) return;
+  saveHistory([]);
+  renderHistory();
+});
+
+renderHistory();
 
 function setBusy(isBusy) {
   runBtn.disabled = isBusy;
@@ -118,6 +186,7 @@ async function runSearch() {
 
     addUsedUnits(unitsFor(count).units);
     renderRemainingQuota();
+    addToHistory(keyword);
   } catch (err) {
     showError(`取得に失敗しました:${err.message}`);
   } finally {
@@ -128,7 +197,9 @@ async function runSearch() {
 function renderResults(keyword, data) {
   const { videos, hashtags, requestedCount } = data;
 
-  resultsHeading.textContent = `「${keyword}」の共起ハッシュタグ`;
+  resultsHeading.textContent = "共起ハッシュタグ";
+  document.getElementById("resultsExplain").textContent =
+    `検索語【${keyword}】で表示される上位の動画の動画詳細欄、タイトルから取得した共起ハッシュタグを表示します。`;
   resultsSub.textContent = `動画 ${videos.length} 件(要求 ${requestedCount} 件)から ${hashtags.length} 種類のハッシュタグを検出`;
 
   taglist.innerHTML = "";
