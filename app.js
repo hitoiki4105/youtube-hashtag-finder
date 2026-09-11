@@ -1,6 +1,6 @@
 // ここをデプロイしたCloudflare WorkerのURLに書き換えてください
 // 例）"https://youtube-hashtag-tool.your-subdomain.workers.dev"
-const WORKER_URL = "https://youtube-hashtag-finder.hitoiki4105.workers.dev";
+const WORKER_URL = "https://your-worker-name.your-subdomain.workers.dev";
 
 const keywordInput = document.getElementById("keyword");
 const countSlider = document.getElementById("count");
@@ -20,14 +20,53 @@ const videoCountEl = document.getElementById("videoCount");
 
 const errorArea = document.getElementById("errorArea");
 const errorText = document.getElementById("errorText");
+const remainingQuotaEl = document.getElementById("remainingQuota");
+
+const DAILY_QUOTA = 10000;
+const QUOTA_STORAGE_KEY = "yt-hashtag-tool-quota-usage";
+
+// クォータは太平洋時間の深夜にリセットされるため、その日付をキーにする
+function pacificDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date()); // 例: "2026-09-11"
+}
+
+function getUsedUnitsToday() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(QUOTA_STORAGE_KEY) || "{}");
+    return raw.date === pacificDateKey() ? raw.used : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function addUsedUnits(units) {
+  const used = getUsedUnitsToday() + units;
+  localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify({ date: pacificDateKey(), used }));
+  return used;
+}
+
+function unitsFor(y) {
+  const pages = Math.ceil(y / 50);
+  // search.list: 100 unit/回, videos.list: 1 unit/回(50件まとめて)
+  return { pages, units: pages * 100 + pages };
+}
+
+function renderRemainingQuota() {
+  const used = getUsedUnitsToday();
+  const remaining = Math.max(0, DAILY_QUOTA - used);
+  remainingQuotaEl.textContent =
+    `本日の残りのクォータ(このツールでの利用分から概算):約 ${remaining} / ${DAILY_QUOTA} ユニット`;
+}
 
 function updateCountLabel() {
   const y = Number(countSlider.value);
   countValue.innerHTML = `${y}<span class="unit">件</span>`;
-  const pages = Math.ceil(y / 50);
-  // search.list: 100 unit/回, videos.list: 1 unit/回(50件まとめて)
-  const units = pages * 100 + pages;
+  const { pages, units } = unitsFor(y);
   quotaNote.textContent = `想定クォータ消費:約 ${units} ユニット(search.list ${pages}回 + videos.list ${pages}回)`;
+  renderRemainingQuota();
 }
 countSlider.addEventListener("input", updateCountLabel);
 updateCountLabel();
@@ -77,6 +116,9 @@ async function runSearch() {
 
     const data = await res.json();
     renderResults(keyword, data);
+
+    addUsedUnits(unitsFor(count).units);
+    renderRemainingQuota();
   } catch (err) {
     showError(`取得に失敗しました:${err.message}`);
   } finally {
