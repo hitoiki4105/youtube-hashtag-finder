@@ -28,7 +28,7 @@ const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const DAILY_QUOTA = 10000;
 const QUOTA_STORAGE_KEY = "yt-hashtag-tool-quota-usage";
 const HISTORY_STORAGE_KEY = "yt-hashtag-tool-history";
-const HISTORY_MAX = 30;
+const HISTORY_MAX = 15; // 検索結果そのものを保存するため、保存件数の上限を抑えている
 
 // クォータは太平洋時間の深夜にリセットされるため、その日付をキーにする
 function pacificDateKey() {
@@ -91,10 +91,16 @@ function saveHistory(arr) {
   localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(arr));
 }
 
-function addToHistory(keyword) {
+function addToHistory(keyword, data) {
   const now = Date.now();
   let history = loadHistory().filter((h) => h.keyword !== keyword);
-  history.unshift({ keyword, ts: now });
+  history.unshift({
+    keyword,
+    ts: now,
+    requestedCount: data.requestedCount,
+    videoCount: data.videos.length,
+    hashtags: data.hashtags,
+  });
   history = history.slice(0, HISTORY_MAX);
   saveHistory(history);
   renderHistory();
@@ -114,18 +120,34 @@ function renderHistory() {
   history.forEach((entry) => {
     const li = document.createElement("li");
     li.className = "history__item";
-    li.tabIndex = 0;
-    li.innerHTML = `<span>${escapeHtml(entry.keyword)}</span><span class="ts">${formatTs(entry.ts)}</span>`;
-    li.addEventListener("click", () => {
-      keywordInput.value = entry.keyword;
-      keywordInput.focus();
+
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "history__row";
+    row.setAttribute("aria-expanded", "false");
+    row.innerHTML = `
+      <span class="caret">▸</span>
+      <span class="kw">${escapeHtml(entry.keyword)}</span>
+      <span class="ts">${formatTs(entry.ts)}</span>
+    `;
+
+    const panel = document.createElement("div");
+    panel.className = "history__panel";
+    panel.hidden = true;
+    panel.innerHTML = `
+      <p class="history__panel-sub">動画 ${entry.videoCount} 件(要求 ${entry.requestedCount} 件)から ${entry.hashtags.length} 種類のハッシュタグを検出</p>
+      <ol class="taglist">${buildTagListHTML(entry.hashtags)}</ol>
+    `;
+
+    row.addEventListener("click", () => {
+      const willOpen = panel.hidden;
+      panel.hidden = !willOpen;
+      row.setAttribute("aria-expanded", String(willOpen));
+      row.querySelector(".caret").textContent = willOpen ? "▾" : "▸";
     });
-    li.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        li.click();
-      }
-    });
+
+    li.appendChild(row);
+    li.appendChild(panel);
     historyList.appendChild(li);
   });
 }
@@ -186,12 +208,34 @@ async function runSearch() {
 
     addUsedUnits(unitsFor(count).units);
     renderRemainingQuota();
-    addToHistory(keyword);
+    addToHistory(keyword, data);
   } catch (err) {
     showError(`取得に失敗しました:${err.message}`);
   } finally {
     setBusy(false);
   }
+}
+
+function buildTagListHTML(hashtags) {
+  if (hashtags.length === 0) {
+    return `<li style="border:none">ハッシュタグは見つかりませんでした。</li>`;
+  }
+  const maxCount = hashtags[0].count;
+  return hashtags
+    .map((item, i) => {
+      const pct = Math.max(4, Math.round((item.count / maxCount) * 100));
+      return `
+        <li>
+          <span class="rank">${String(i + 1).padStart(2, "0")}</span>
+          <span class="tagname">#${escapeHtml(item.tag)}</span>
+          <span class="barwrap">
+            <span class="bar"><span style="width:${pct}%"></span></span>
+            <span class="count">${item.count}</span>
+          </span>
+        </li>
+      `;
+    })
+    .join("");
 }
 
 function renderResults(keyword, data) {
@@ -202,29 +246,7 @@ function renderResults(keyword, data) {
     `検索語【${keyword}】で表示される上位の動画の動画詳細欄、タイトルから取得した共起ハッシュタグを表示します。`;
   resultsSub.textContent = `動画 ${videos.length} 件(要求 ${requestedCount} 件)から ${hashtags.length} 種類のハッシュタグを検出`;
 
-  taglist.innerHTML = "";
-  const maxCount = hashtags.length ? hashtags[0].count : 1;
-
-  if (hashtags.length === 0) {
-    const li = document.createElement("li");
-    li.textContent = "ハッシュタグは見つかりませんでした。";
-    li.style.border = "none";
-    taglist.appendChild(li);
-  }
-
-  hashtags.forEach((item, i) => {
-    const li = document.createElement("li");
-    const pct = Math.max(4, Math.round((item.count / maxCount) * 100));
-    li.innerHTML = `
-      <span class="rank">${String(i + 1).padStart(2, "0")}</span>
-      <span class="tagname">#${escapeHtml(item.tag)}</span>
-      <span class="barwrap">
-        <span class="bar"><span style="width:${pct}%"></span></span>
-        <span class="count">${item.count}</span>
-      </span>
-    `;
-    taglist.appendChild(li);
-  });
+  taglist.innerHTML = buildTagListHTML(hashtags);
 
   videolist.innerHTML = "";
   videoCountEl.textContent = videos.length;
