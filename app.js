@@ -1,6 +1,5 @@
-// ここをデプロイしたCloudflare WorkerのURLに書き換えてください
-// 例）"https://youtube-hashtag-tool.your-subdomain.workers.dev"
-const WORKER_URL = "https://your-worker-name.your-subdomain.workers.dev";
+// デプロイ済みのCloudflare Worker
+const WORKER_URL = "https://youtube-hashtag-finder.hitoiki4105.workers.dev";
 
 const keywordInput = document.getElementById("keyword");
 const countSlider = document.getElementById("count");
